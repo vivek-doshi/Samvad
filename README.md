@@ -1,2 +1,2 @@
-# general-template
-My starter template of almost all repo
+# samvad
+is a standalone, locally-hosted decision-support interface powered by a 2B parameter finance-specialized language model. It enables financial analysts, portfolio managers, Chartered Accountants, and retail investors to query the Indian Income Tax Act 2025, analyze uploaded financial documents, receive equity buy/sell/hold assessments, and perform general financial Q&A — all grounded in retrieved evidence with optional web augmentation.
