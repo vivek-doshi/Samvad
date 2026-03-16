@@ -1,0 +1,8 @@
+# Samvad — Docker Compose
+# Three services: model-server, backend, frontend
+version: "3.9"
+
+services:
+  # TODO: Define model-server service
+  # TODO: Define backend service
+  # TODO: Define frontend service

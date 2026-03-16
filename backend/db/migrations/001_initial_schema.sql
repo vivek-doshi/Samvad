@@ -1,0 +1,2 @@
+-- Samvad Database Initial Schema Migration
+-- Mirrors backend/db/schema.sql

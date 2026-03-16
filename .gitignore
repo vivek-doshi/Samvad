@@ -1,0 +1,33 @@
+# Samvad — .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Models — too large for git
+models/
+
+# Runtime data — generated at runtime
+runtime/
+
+# Corpus PDFs — mounted, not committed
+data/corpus/
+
+# Environment secrets
+.env
+
+# Node
+node_modules/
+dist/
+
+# Angular
+frontend/.angular/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

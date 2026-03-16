@@ -1,0 +1,20 @@
+# Samvad Backend — Python Dependencies
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+aiosqlite
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+chromadb
+sentence-transformers
+httpx
+sse-starlette
+python-dotenv
+PyYAML
+PyPDF2
+python-docx
+openpyxl
+rank-bm25
+duckduckgo-search
