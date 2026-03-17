@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.core.llm_client import LLMClient
+from backend.core.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,8 @@ class ChatRequest(BaseModel):
 async def generate_response(
     request: ChatRequest,
     llm_client: LLMClient,
+    token_manager: TokenManager,
+    config: dict,
 ) -> AsyncGenerator[str, None]:
     """Yield SSE events: token chunks followed by a done sentinel."""
     start = time.perf_counter()
@@ -51,10 +54,13 @@ async def generate_response(
     # TODO: [PHASE 2] Add session history from token_manager.allocate_budget()
 
     try:
+        model_cfg = config.get("model", {})
         async for token in llm_client.stream_chat(
             messages,
-            max_tokens=1024,
-            temperature=0.3,
+            max_tokens=model_cfg.get("max_tokens_generation", 1024),
+            temperature=model_cfg.get("temperature", 0.3),
+            top_p=model_cfg.get("top_p", 0.95),
+            repeat_penalty=model_cfg.get("repeat_penalty", 1.1),
         ):
             yield f"data: {json.dumps({'token': token, 'done': False})}\n\n"
 
@@ -81,9 +87,11 @@ async def generate_response(
 @router.post("/chat")
 async def chat(request: Request, body: ChatRequest):
     llm_client: LLMClient = request.app.state.llm_client
+    token_manager: TokenManager = request.app.state.token_manager
+    config: dict = request.app.state.config
 
     return StreamingResponse(
-        generate_response(body, llm_client),
+        generate_response(body, llm_client, token_manager, config),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

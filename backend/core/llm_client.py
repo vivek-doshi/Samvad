@@ -62,6 +62,7 @@ class LLMClient:
         max_tokens: int = 1024,
         temperature: float = 0.3,
         top_p: float = 0.95,
+        repeat_penalty: float = 1.1,
     ) -> AsyncGenerator[str, None]:
         """Stream chat completion tokens via SSE."""
         client = self._ensure_client()
@@ -71,6 +72,7 @@ class LLMClient:
             "max_tokens": max_tokens,
             "temperature": temperature,
             "top_p": top_p,
+            "repeat_penalty": repeat_penalty,
             "stream": True,
         }
 

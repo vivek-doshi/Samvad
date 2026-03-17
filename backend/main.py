@@ -27,14 +27,26 @@ def _load_config() -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # -- startup ----------------------------------------------------------------
-    config = _load_config()
+    from pathlib import Path
+
+    config_path = Path("config/samvad.yaml")
+    if not config_path.exists():
+        config_path = Path(__file__).parent.parent / "config" / "samvad.yaml"
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
     app.state.config = config
 
-    llm_client = LLMClient(timeout=config.get("model", {}).get("timeout_seconds", 120))
+    server_cfg = config.get("model", {})
+    llm_client = LLMClient(
+        base_url=f"http://{os.getenv('LLAMA_SERVER_HOST', 'localhost')}:{os.getenv('LLAMA_SERVER_PORT', '8080')}",
+        timeout=server_cfg.get("timeout_seconds", 120),
+    )
     await llm_client.__aenter__()
     app.state.llm_client = llm_client
 
-    app.state.token_manager = TokenManager(config)
+    app.state.token_manager = TokenManager(config=config)
 
     # TODO: [PHASE 2] Initialise SQLite db_client
     # TODO: [PHASE 3] Load BM25 index
