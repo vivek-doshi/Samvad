@@ -1,1 +1,5 @@
-<p>disclaimer works!</p>
+<div class="disclaimer" *ngIf="visible()">
+	<span class="icon">⚠</span>
+	<span>{{ text() }}</span>
+	<button type="button" (click)="visible.set(false)">✕</button>
+</div>

@@ -1,1 +1,43 @@
-/* You can add global styles to this file, and also import other style files */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html,
+body {
+	height: 100%;
+}
+
+body {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	background: #0f1117;
+	color: #e8eaf0;
+	-webkit-font-smoothing: antialiased;
+}
+
+:root {
+	--navy: #1b3a6b;
+	--teal: #0d6e6e;
+	--bg: #0f1117;
+	--surface: #1a1d27;
+	--surface-2: #22263a;
+	--border: #2a2d3a;
+	--text: #e8eaf0;
+	--text-muted: #8b8fa8;
+	--error: #e74c3c;
+}
+
+* {
+	scroll-behavior: smooth;
+}
+
+button {
+	font-family: inherit;
+}
+
+textarea {
+	overflow: hidden;
+}

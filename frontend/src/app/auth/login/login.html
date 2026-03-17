@@ -1,1 +1,46 @@
-<p>login works!</p>
+<div class="login-shell">
+	<div class="login-card">
+		<div class="brand">
+			<h1>Samvad</h1>
+			<p>Powered by Arthvidya</p>
+			<hr />
+		</div>
+
+		<form [formGroup]="loginForm" (ngSubmit)="onSubmit()" novalidate>
+			<div class="field">
+				<label for="username">Username</label>
+				<input id="username" type="text" formControlName="username" autocomplete="username" />
+				<p class="field-error" *ngIf="usernameControl?.touched && usernameControl?.invalid">
+					Username is required and must be at least 3 characters.
+				</p>
+			</div>
+
+			<div class="field">
+				<label for="password">Password</label>
+				<div class="password-wrapper">
+					<input
+						id="password"
+						[type]="showPassword() ? 'text' : 'password'"
+						formControlName="password"
+						autocomplete="current-password"
+					/>
+					<button type="button" class="toggle-password" (click)="togglePassword()">
+						{{ showPassword() ? 'Hide' : 'Show' }}
+					</button>
+				</div>
+				<p class="field-error" *ngIf="passwordControl?.touched && passwordControl?.invalid">
+					Password is required and must be at least 6 characters.
+				</p>
+			</div>
+
+			<button class="login-btn" type="submit" [disabled]="loginForm.invalid || isLoading()">
+				<span class="spinner" *ngIf="isLoading()"></span>
+				<span>{{ isLoading() ? 'Signing in...' : 'Login' }}</span>
+			</button>
+
+			<div class="error-box" *ngIf="errorMessage()">
+				{{ errorMessage() }}
+			</div>
+		</form>
+	</div>
+</div>

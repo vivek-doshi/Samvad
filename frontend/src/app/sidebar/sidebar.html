@@ -1,1 +1,30 @@
-<p>sidebar works!</p>
+<div class="sidebar">
+	<div class="sidebar-header">
+		<span class="logo-text">Samvad</span>
+		<button class="new-chat-btn" (click)="newSession()" title="New conversation" type="button">
+			<span>+</span>
+		</button>
+	</div>
+
+	<div class="session-list">
+		<div class="empty-state" *ngIf="sessions().length === 0">
+			<p>No conversations yet</p>
+			<p class="sub">Start a new chat above</p>
+		</div>
+
+		<div
+			*ngFor="let session of sessions()"
+			class="session-item"
+			[class.active]="session.sessionId === activeSessionId()"
+			(click)="selectSession(session.sessionId)"
+		>
+			<div class="session-title">{{ session.title }}</div>
+			<div class="session-meta">
+				<span class="domain" *ngIf="session.domainLast">{{ session.domainLast }}</span>
+				<span class="date">{{ formatDate(session.lastActiveAt) }}</span>
+			</div>
+		</div>
+	</div>
+
+	<div class="sidebar-footer">TODO: user profile + logout (Phase 2)</div>
+</div>

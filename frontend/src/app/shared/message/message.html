@@ -1,1 +1,26 @@
-<p>message works!</p>
+<div
+	class="message"
+	[class.user]="msg().role === 'user'"
+	[class.assistant]="msg().role === 'assistant'"
+	[class.streaming]="msg().isStreaming"
+>
+	<div class="bubble">
+		<div
+			class="content"
+			[innerHTML]="msg().content | markdown"
+			*ngIf="!msg().isStreaming || msg().content.length > 0"
+		></div>
+		<span class="cursor" *ngIf="msg().isStreaming"></span>
+		<div class="error" *ngIf="msg().error">{{ msg().error }}</div>
+	</div>
+
+	<div class="meta">
+		<span class="domain-badge" *ngIf="msg().domain">{{ msg().domain }}</span>
+		<span class="timestamp">{{ msg().timestamp | date : 'HH:mm' }}</span>
+	</div>
+
+	<app-disclaimer
+		*ngIf="msg().role === 'assistant' && !msg().isStreaming && showDisclaimer()"
+		[text]="disclaimerText()"
+	></app-disclaimer>
+</div>

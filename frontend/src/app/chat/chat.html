@@ -1,1 +1,63 @@
-<p>chat works!</p>
+<header class="app-header">
+	<div class="header-left">
+		<span class="app-name">Samvad</span>
+		<span class="powered-by">powered by Arthvidya</span>
+	</div>
+	<div class="header-right">
+		<span class="user-display"> TODO [PHASE 2]: {{ authService.currentUser()?.displayName }} </span>
+	</div>
+</header>
+
+<app-sidebar
+	[sessions]="sessions()"
+	[activeSessionId]="activeSessionId()"
+	(onSessionSelect)="activeSessionId.set($event)"
+	(onNewSession)="onNewSession()"
+></app-sidebar>
+
+<main class="main-area">
+	<div #messageContainer class="message-list">
+		<div class="empty-state" *ngIf="messages().length === 0">
+			<div class="welcome-icon">💬</div>
+			<h2>Ask Samvad</h2>
+			<p>Income tax, equity analysis, financial documents</p>
+		</div>
+
+		<app-message
+			*ngFor="let msg of messages(); trackBy: trackById"
+			[msg]="msg"
+			[showDisclaimer]="msg.role === 'assistant' && !msg.isStreaming"
+		></app-message>
+	</div>
+
+	<div class="input-area">
+		<div class="input-wrapper">
+			<textarea
+				#inputField
+				[value]="inputText()"
+				(input)="onInput($event)"
+				(keydown)="onKeyDown($event)"
+				placeholder="Ask about tax, equity, or upload a document..."
+				[disabled]="isStreaming()"
+				rows="1"
+				maxlength="2000"
+			></textarea>
+
+			<div class="input-actions">
+				<span class="char-count" [class.near-limit]="charCount() > 1800"> {{ charCount() }}/2000 </span>
+				<button
+					*ngIf="!isStreaming()"
+					(click)="sendMessage()"
+					[disabled]="!inputText().trim()"
+					class="send-btn"
+					type="button"
+				>
+					Send
+				</button>
+				<button *ngIf="isStreaming()" (click)="cancelStream()" class="stop-btn" type="button">
+					■ Stop
+				</button>
+			</div>
+		</div>
+	</div>
+</main>

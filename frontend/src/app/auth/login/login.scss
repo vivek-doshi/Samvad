@@ -1,0 +1,147 @@
+:host {
+	display: block;
+	height: 100vh;
+	background: var(--bg);
+}
+
+.login-shell {
+	height: 100%;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.login-card {
+	width: 400px;
+	padding: 40px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.brand {
+	margin-bottom: 24px;
+
+	h1 {
+		font-size: 36px;
+		color: var(--navy);
+		font-weight: 800;
+		margin-bottom: 4px;
+	}
+
+	p {
+		color: var(--teal);
+		font-style: italic;
+		font-size: 14px;
+		margin-bottom: 14px;
+	}
+
+	hr {
+		border: none;
+		border-top: 1px solid var(--teal);
+		opacity: 0.7;
+	}
+}
+
+.field {
+	margin-bottom: 14px;
+
+	label {
+		display: block;
+		margin-bottom: 6px;
+		color: var(--text);
+		font-size: 13px;
+	}
+}
+
+input {
+	width: 100%;
+	padding: 10px 14px;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	color: var(--text);
+
+	&:focus {
+		border-color: var(--teal);
+		outline: none;
+	}
+}
+
+.password-wrapper {
+	position: relative;
+
+	input {
+		padding-right: 64px;
+	}
+}
+
+.toggle-password {
+	position: absolute;
+	right: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.field-error {
+	margin-top: 6px;
+	color: var(--error);
+	font-size: 12px;
+}
+
+.login-btn {
+	width: 100%;
+	padding: 11px;
+	background: var(--navy);
+	color: var(--text);
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 15px;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin-top: 10px;
+
+	&:hover {
+		background: #254d91;
+	}
+
+	&:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+}
+
+.spinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid rgba(255, 255, 255, 0.3);
+	border-top-color: var(--text);
+	border-radius: 50%;
+	animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.error-box {
+	padding: 10px 14px;
+	border-radius: 6px;
+	background: rgba(231, 76, 60, 0.15);
+	border: 1px solid rgba(231, 76, 60, 0.4);
+	color: var(--error);
+	font-size: 13px;
+	margin-top: 12px;
+}
