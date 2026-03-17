@@ -1,9 +1,23 @@
 import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { Observable, tap } from 'rxjs';
+import { map, Observable, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { LoginRequest, LoginResponse, User } from '../models/user.model';
+import { LoginRequest, User } from '../models/user.model';
+
+interface LoginApiUser {
+  user_id: string;
+  username: string;
+  display_name: string;
+  role: 'admin' | 'user';
+}
+
+interface LoginApiResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  user: LoginApiUser;
+}
 
 @Injectable({
   providedIn: 'root',
@@ -22,16 +36,45 @@ export class AuthService {
   readonly currentUser = computed(() => this._user());
   readonly token = computed(() => this._token());
 
-  login(request: LoginRequest): Observable<LoginResponse> {
+  login(request: LoginRequest): Observable<void> {
     const url = `${environment.apiBaseUrl}${environment.authEndpoint}/login`;
+    const body = {
+      username: request.username,
+      password: request.password,
+    };
 
-    return this.http.post<LoginResponse>(url, request).pipe(
+    return this.http.post<LoginApiResponse>(url, body).pipe(
       tap((response) => {
-        this._token.set(response.accessToken);
-        this._user.set(response.user);
-        localStorage.setItem(this.TOKEN_KEY, response.accessToken);
-        localStorage.setItem(this.USER_KEY, JSON.stringify(response.user));
+        const user: User = {
+          userId: response.user.user_id,
+          username: response.user.username,
+          displayName: response.user.display_name,
+          role: response.user.role,
+        };
+
+        localStorage.setItem(this.TOKEN_KEY, response.access_token);
+        localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+        this._token.set(response.access_token);
+        this._user.set(user);
       }),
+      map(() => void 0),
+    );
+  }
+
+  refreshCurrentUser(): Observable<void> {
+    const url = `${environment.apiBaseUrl}${environment.authEndpoint}/me`;
+    return this.http.get<LoginApiUser>(url, { headers: this.getAuthHeaders() }).pipe(
+      tap((response) => {
+        const user: User = {
+          userId: response.user_id,
+          username: response.username,
+          displayName: response.display_name,
+          role: response.role,
+        };
+        localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+        this._user.set(user);
+      }),
+      map(() => void 0),
     );
   }
 

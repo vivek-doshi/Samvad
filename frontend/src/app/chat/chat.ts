@@ -12,22 +12,27 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { ChatStreamEvent, Message } from '../models/message.model';
-import { SessionListItem } from '../models/session.model';
+import { SessionListItem, TurnResponse } from '../models/session.model';
+import { Router } from '@angular/router';
 import { AuthService } from '../services/auth';
 import { ChatService } from '../services/chat';
+import { SessionService } from '../services/session';
 import { MessageComponent } from '../shared/message/message';
 import { SidebarComponent } from '../sidebar/sidebar';
+import { SourcesPanelComponent } from '../sources/sources-panel.component';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, MessageComponent, SidebarComponent],
+  imports: [CommonModule, FormsModule, MessageComponent, SidebarComponent, SourcesPanelComponent],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
 export class ChatComponent implements OnInit, OnDestroy {
   private readonly chatService = inject(ChatService);
-  readonly authService = inject(AuthService);
+  private readonly sessionService = inject(SessionService);
+  private readonly router = inject(Router);
+  public readonly authService = inject(AuthService);
 
   @ViewChild('messageContainer') messageContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('inputField') inputField!: ElementRef<HTMLTextAreaElement>;
@@ -43,10 +48,24 @@ export class ChatComponent implements OnInit, OnDestroy {
   private streamStart = 0;
 
   ngOnInit(): void {
-    const tempId = crypto.randomUUID();
-    this.activeSessionId.set(tempId);
-    // TODO: [PHASE 2] Load active session from SessionService
-    // TODO: [PHASE 2] Load session history list
+    this.sessionService.loadSessions().subscribe({
+      next: (sessions) => {
+        this.sessions.set(sessions);
+        const active = sessions.find((s) => s.status === 'active');
+        if (active) {
+          this.activeSessionId.set(active.sessionId);
+          this.sessionService.setActiveSession(active.sessionId);
+          this.loadSessionTurns(active.sessionId);
+        } else {
+          this.createNewSession();
+        }
+      },
+      error: (err) => {
+        if (err.status === 401) {
+          this.router.navigate(['/login']);
+        }
+      },
+    });
   }
 
   sendMessage(): void {
@@ -99,12 +118,23 @@ export class ChatComponent implements OnInit, OnDestroy {
                 updated[updated.length - 1] = {
                   ...last,
                   content: last.content + event.token,
-                  sources: event.sources ?? last.sources,
                 };
               }
               return updated;
             });
             this.scrollToBottom();
+          } else if (event.done) {
+            this.messages.update((msgs) => {
+              const updated = [...msgs];
+              const last = updated[updated.length - 1];
+              if (last.role === 'assistant') {
+                updated[updated.length - 1] = {
+                  ...last,
+                  sources: event.sources ?? [],
+                };
+              }
+              return updated;
+            });
           }
         },
         error: (err: Error) => {
@@ -137,6 +167,9 @@ export class ChatComponent implements OnInit, OnDestroy {
           });
           this.isStreaming.set(false);
           this.scrollToBottom();
+          this.sessionService.loadSessions().subscribe({
+            next: (sessions) => this.sessions.set(sessions),
+          });
         },
       });
   }
@@ -172,11 +205,53 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.autoResizeInput();
   }
 
-  onNewSession(): void {
+  createNewSession(): void {
+    this.sessionService.createSession().subscribe({
+      next: (session) => {
+        this.activeSessionId.set(session.sessionId);
+        this.sessionService.setActiveSession(session.sessionId);
+        this.sessions.set(this.sessionService.sessions());
+        this.messages.set([]);
+      },
+      error: () => {
+        // Session is optional for current flow; keep chat usable.
+      },
+    });
+  }
+
+  private loadSessionTurns(sessionId: string): void {
+    this.sessionService.loadSessionTurns(sessionId).subscribe({
+      next: (turns: TurnResponse[]) => {
+        const messages: Message[] = turns.map((turn) => ({
+          id: turn.turnId,
+          role: turn.role as 'user' | 'assistant',
+          content: turn.content,
+          isStreaming: false,
+          domain: turn.domain ?? undefined,
+          sources: turn.sourcesCited,
+          timestamp: turn.createdAt,
+        }));
+        this.messages.set(messages);
+        setTimeout(() => this.scrollToBottom(), 100);
+      },
+      error: () => {
+        // Ignore history load errors to avoid blocking chat input.
+      },
+    });
+  }
+
+  onSessionSelected(sessionId: string): void {
+    if (sessionId === this.activeSessionId()) {
+      return;
+    }
+    this.activeSessionId.set(sessionId);
+    this.sessionService.setActiveSession(sessionId);
     this.messages.set([]);
-    this.activeSessionId.set(crypto.randomUUID());
-    this.inputText.set('');
-    this.autoResizeInput();
+    this.loadSessionTurns(sessionId);
+  }
+
+  onNewSession(): void {
+    this.createNewSession();
   }
 
   trackById(_index: number, msg: Message): string {

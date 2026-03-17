@@ -1,0 +1,22 @@
+<div class="sources-panel" *ngIf="isVisible()">
+  <div class="sources-header">
+    <span class="icon">📎</span>
+    <span>Sources ({{ sources().length }})</span>
+  </div>
+  <div class="source-list">
+    <div *ngFor="let source of sources(); let i = index"
+         class="source-item">
+      <div class="source-number">[{{ i + 1 }}]</div>
+      <div class="source-details">
+        <div class="source-doc">{{ source.document }}</div>
+        <div class="source-ref" *ngIf="source.section">
+          Section {{ source.section }}
+          <span *ngIf="source.page"> · Page {{ source.page }}</span>
+        </div>
+        <div class="source-excerpt" *ngIf="source.excerpt">
+          "{{ source.excerpt }}"
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

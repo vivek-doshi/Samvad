@@ -49,6 +49,7 @@ export class ChatService {
           }
 
           if (event.done) {
+            subscriber.next({ token: '', done: true, sources: event.sources ?? [] });
             subscriber.complete();
             return true;
           }

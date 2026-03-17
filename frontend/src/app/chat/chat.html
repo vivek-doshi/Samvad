@@ -4,14 +4,14 @@
 		<span class="powered-by">powered by Arthvidya</span>
 	</div>
 	<div class="header-right">
-		<span class="user-display"> TODO [PHASE 2]: {{ authService.currentUser()?.displayName }} </span>
+		<span class="user-display"> {{ authService.currentUser()?.displayName }} </span>
 	</div>
 </header>
 
 <app-sidebar
 	[sessions]="sessions()"
 	[activeSessionId]="activeSessionId()"
-	(onSessionSelect)="activeSessionId.set($event)"
+	(onSessionSelect)="onSessionSelected($event)"
 	(onNewSession)="onNewSession()"
 ></app-sidebar>
 
@@ -23,11 +23,16 @@
 			<p>Income tax, equity analysis, financial documents</p>
 		</div>
 
-		<app-message
-			*ngFor="let msg of messages(); trackBy: trackById"
-			[msg]="msg"
-			[showDisclaimer]="msg.role === 'assistant' && !msg.isStreaming"
-		></app-message>
+		<ng-container *ngFor="let msg of messages(); trackBy: trackById">
+			<app-message
+				[msg]="msg"
+				[showDisclaimer]="msg.role === 'assistant' && !msg.isStreaming"
+			></app-message>
+			<app-sources-panel
+				*ngIf="msg.role === 'assistant' && msg.sources?.length"
+				[sources]="msg.sources!"
+			></app-sources-panel>
+		</ng-container>
 	</div>
 
 	<div class="input-area">
