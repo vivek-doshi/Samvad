@@ -2,6 +2,9 @@ import re
 import uuid
 import logging
 from dataclasses import dataclass, field
+# Note 1: 'dataclass' is a Python decorator that auto-generates __init__, __repr__,
+# and __eq__ from class attributes. Using it for Chunk avoids writing 8+ parameter
+# constructors by hand and makes the class self-documenting through its fields.
 from typing import Optional
 from pathlib import Path
 
@@ -10,18 +13,33 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Chunk:
+    # Note 2: Chunk is the core data unit in the RAG pipeline. Every piece of
+    # text that gets embedded and stored in ChromaDB is a Chunk. The fields
+    # capture both the text content and the provenance (where it came from),
+    # which is needed for generating accurate source citations in responses.
     chunk_id: str
     text: str
     chunk_level: str          # "leaf" | "child" | "parent"
+    # Note 3: The three-level hierarchy (parent/child/leaf) reflects legal document
+    # structure: parent = section, child = subsection, leaf = clause/sentence.
+    # This hierarchy is used in "parent promotion" — when a relevant leaf is found,
+    # the retriever returns its parent for richer context around the matched clause.
     parent_chunk_id: Optional[str]
     doc_type: str             # "income_tax_act"|"regulation"|"dtaa"|"user_doc"
     source_name: str
     chroma_collection: str
+    # Note 4: 'field(default_factory=dict)' creates a NEW empty dict for each
+    # Chunk instance. Using a mutable default like 'metadata={}' directly would
+    # share ONE dict across ALL instances — a classic Python gotcha with dataclasses.
     metadata: dict = field(default_factory=dict)
 
 
 class HierarchicalChunker:
     """Splits legal text into parent → child → leaf hierarchy."""
+    # Note 5: Legal documents (Income Tax Act, SEBI Regulations) have a strict
+    # hierarchical structure: Chapter -> Section -> Subsection -> Clause.
+    # This chunker mirrors that hierarchy so the retriever can surface either
+    # a precise leaf clause or a broader parent section depending on the query.
 
     def __init__(
         self,
@@ -30,6 +48,10 @@ class HierarchicalChunker:
         chroma_collection_prefix: str,
         max_parent_tokens: int = 1800,
         max_leaf_tokens: int = 400,
+        # Note 6: 400 tokens per leaf keeps each chunk small enough for accurate
+        # vector similarity — long chunks "dilute" the embedding with unrelated
+        # sentences. Parent chunks at 1800 tokens give the model broader context
+        # once a relevant leaf is found via parent promotion.
     ):
         self.source_name = source_name
         self.doc_type = doc_type
@@ -62,6 +84,10 @@ class HierarchicalChunker:
         return chunks
 
     def _split_into_sections(self, text: str) -> list[tuple[str, str]]:
+        # Note 7: These four regex patterns cover the main structural markers found
+        # in Indian legal documents. The order matters — more specific patterns
+        # (Section X) are listed before more general ones (numbered headings) to
+        # avoid false matches from numbered paragraphs inside section bodies.
         patterns = [
             re.compile(r'^(Section\s+\d+[A-Z]?\s*[\.\-\u2013]?\s+\w[\w\s,]+)', re.MULTILINE),
             re.compile(r'^(Regulation\s+\d+[\.\(])', re.MULTILINE),
@@ -170,11 +196,19 @@ class HierarchicalChunker:
         return list(set(pattern.findall(text)))
 
     def _estimate_tokens(self, text: str) -> int:
+        # Note 10: Rough token count: words * 1.3 is a common approximation
+        # for English text with BPE sub-word tokenization. This avoids loading
+        # the full tiktoken encoder just for size estimation, keeping ingestion fast.
         return int(len(text.split()) * 1.3)
 
 
 class SemanticChunker:
     """Splits user-uploaded documents by structural markers and paragraphs."""
+    # Note 8: Unlike HierarchicalChunker (for known regulatory documents),
+    # SemanticChunker handles arbitrary user uploads — balance sheets, reports,
+    # contracts. It detects headings heuristically and falls back to paragraph
+    # splitting. The 'overlap' parameter carries the last N words of one chunk
+    # into the next to preserve context across chunk boundaries.
 
     def __init__(self, chunk_size: int = 512, overlap: int = 64):
         self.chunk_size = chunk_size
@@ -208,6 +242,9 @@ class SemanticChunker:
 
         for section_heading, section_text in sections:
             # Detect tables (lines with | or tab separators)
+            # Note 9: Tables are emitted as a single chunk rather than being split
+            # by the paragraph chunker. This keeps table rows together — splitting
+            # a table mid-row would produce meaningless chunks that confuse the model.
             lines = section_text.split("\n")
             table_lines: list[str] = []
             prose_lines: list[str] = []

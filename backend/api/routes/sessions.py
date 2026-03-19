@@ -7,10 +7,17 @@ from pydantic import BaseModel
 
 from backend.api.middleware.auth_middleware import get_current_user_id
 
+# Note 1: The sessions router handles the full lifecycle of a conversation:
+# create -> read turns -> rename -> archive. Each session is a named thread
+# of conversation turns (user messages + assistant replies) stored in SQLite.
+# The sidebar in the Angular frontend lists all sessions for the current user.
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
 class SessionResponse(BaseModel):
+	# Note 2: Pydantic response models serve two purposes:
+	# 1. They validate that the data being returned matches the declared shape.
+	# 2. They appear in the OpenAPI schema at /docs, documenting the API contract.
 	session_id: str
 	title: str
 	status: str
@@ -52,6 +59,12 @@ def _to_session_response(row: dict) -> SessionResponse:
 
 
 async def _ensure_owner(db_client, session_id: str, user_id: str) -> dict:
+	# Note 3: This guard function is called at the start of every session endpoint
+	# that takes a session_id path parameter. It checks two things:
+	# 1. The session exists in the database (returns 404 if not)
+	# 2. The session belongs to the requesting user (returns 403 if not)
+	# This prevents "Insecure Direct Object Reference" (IDOR) — a vulnerability
+	# where a user guesses another user's session_id and accesses their history.
 	session = await db_client.fetchone(
 		"SELECT * FROM sessions WHERE session_id = ?",
 		(session_id,),
@@ -83,6 +96,10 @@ async def create_session(request: Request, user_id: str = Depends(get_current_us
 	db_client = request.app.state.db
 	now = _now_iso()
 
+	# Note 4: Before creating a new session, we close any currently active one.
+	# The schema enforces that each user can have at most one active session
+	# (via a partial unique index). This UPDATE does nothing if there is no
+	# active session, which is safe — it is a no-op when the user has no prior history.
 	await db_client.execute(
 		"""
 		UPDATE sessions
@@ -95,6 +112,8 @@ async def create_session(request: Request, user_id: str = Depends(get_current_us
 	)
 
 	session_id = str(uuid.uuid4())
+	# Note 5: The title includes the current time so the user can identify sessions
+	# in the sidebar at a glance. "Chat - 14 Mar 09:30" is more useful than "Session 1".
 	title = f"Chat - {datetime.now(timezone.utc).strftime('%d %b %H:%M')}"
 
 	await db_client.execute(
@@ -171,6 +190,10 @@ async def archive_session(
 	db_client = request.app.state.db
 	await _ensure_owner(db_client, session_id, user_id)
 
+	# Note 6: Sessions are ARCHIVED, not deleted. This is a deliberate design
+	# choice — conversation history has audit and compliance value. An archived
+	# session is hidden from the sidebar but preserved in the database for
+	# future export, investigation, or compliance review if needed.
 	await db_client.execute(
 		"""
 		UPDATE sessions
