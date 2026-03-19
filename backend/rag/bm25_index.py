@@ -6,7 +6,11 @@ from rank_bm25 import BM25Okapi
 import pickle
 # Note 2: pickle serialises Python objects to binary files. BM25Okapi indices and
 # the chunk maps are saved as .pkl files so they persist between server restarts.
-# Warning: never unpickle files from untrusted sources — pickle can execute code.
+# Security warning: never unpickle files from untrusted sources — pickle can
+# execute arbitrary Python code during deserialization (a known attack vector).
+# For Samvad, pickle files are generated internally by index_corpus.py and stored
+# in a server-controlled directory, so the trust boundary is maintained.
+# Future enhancement: consider msgpack or JSON serialisation for better portability.
 import logging
 import re
 from pathlib import Path

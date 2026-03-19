@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 # replaced with a long random string (e.g. 'openssl rand -hex 32'). If the
 # secret leaks, attackers can forge tokens for any user. The environment
 # variable approach keeps it out of version control.
+# Security note: The default "CHANGE-THIS-IN-PRODUCTION" is intentionally
+# obvious. Consider raising a startup ValueError if SAMVAD_ENV=production
+# and the key still has the default value to prevent accidental deployment.
 SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE-THIS-IN-PRODUCTION")
 # Note 4: HS256 (HMAC-SHA256) is a symmetric signing algorithm — the same
 # secret key is used to sign and verify. RS256 (asymmetric) is preferred for

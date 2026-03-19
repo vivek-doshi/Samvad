@@ -1,4 +1,7 @@
 {
   "description": "Auto-updated by index_corpus.py — tracks what is indexed",
+  "_comment_note1": "Note 1: This JSON file is a manifest of all corpus sources that have been successfully indexed into ChromaDB and BM25. It is updated automatically by backend/scripts/index_corpus.py after each indexing run.",
+  "_comment_note2": "Note 2: The 'corpora' array contains one entry per indexed source. Each entry records the source name, number of chunks, embedding model used, and the timestamp of the last indexing. This allows operators to quickly check which documents are available without querying ChromaDB directly.",
+  "_comment_note3": "Note 3: When the 'corpora' array is empty (as in a fresh installation), all chat queries will return 'not enough information' because no knowledge base content has been indexed yet. Run index_corpus.py to populate it.",
   "corpora": []
 }

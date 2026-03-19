@@ -181,6 +181,8 @@ class Retriever:
         # across both ranked lists. A chunk that appears in BOTH lists (top of
         # vector search AND top of BM25) gets double credit and rises to the top.
         # The k parameter (60) prevents top-1 results from dominating too strongly.
+        # Reference: Cormack, Clarke, Buettcher (2009) — "Reciprocal Rank Fusion
+        # outperforms Condorcet and individual Rank Learning Methods" — SIGIR 2009.
         scores: dict[str, float] = {}
         chunk_map: dict[str, Chunk] = {}
 

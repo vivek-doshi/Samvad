@@ -1,3 +1,8 @@
+// SessionService — manages conversation session state
+// Note 1: This service owns all session-related state and API calls. It uses
+// Angular signals (signal(), computed()) to store state and Angular's HttpClient
+// for REST API communication. The ChatComponent and SidebarComponent both inject
+// this service to stay in sync with the same session state.
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { inject, signal } from '@angular/core';
@@ -7,6 +12,9 @@ import { SourceReference } from '../models/message.model';
 import { SessionListItem, TurnResponse } from '../models/session.model';
 import { AuthService } from './auth';
 
+// Note 2: These private interfaces mirror the backend's API response shape
+// (snake_case from Python) and are only used inside this service for mapping.
+// They are NOT exported because the rest of the app uses the camelCase models.
 interface SessionApiResponse {
   session_id: string;
   title: string;
@@ -35,6 +43,11 @@ export class SessionService {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
 
+  // Note 3: These three signals form the service's "state". Any component that
+  // reads these signals will automatically re-render when the signal value changes.
+  // - sessions     : all sessions for the current user (shown in sidebar)
+  // - activeSession: the currently selected/active session
+  // - isLoading    : true while the session list is being fetched
   readonly sessions = signal<SessionListItem[]>([]);
   readonly activeSession = signal<SessionListItem | null>(null);
   readonly isLoadingSessions = signal(false);
@@ -79,6 +92,9 @@ export class SessionService {
           lastActiveAt: new Date(row.last_active_at),
         })),
         tap((mapped) => {
+          // Note 4: sessions.update() is the Angular signal equivalent of setState
+          // with an updater function. We prepend the new session and filter out
+          // any existing session with the same ID (in case of concurrent creates).
           this.sessions.update((items) => [mapped, ...items.filter((s) => s.sessionId !== mapped.sessionId)]);
           this.activeSession.set(mapped);
         }),

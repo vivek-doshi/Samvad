@@ -95,6 +95,9 @@ class LLMClient:
         # that spans multiple lines is captured and removed in one pass.
         # '.*?' is a non-greedy match — it stops at the FIRST </think>, not
         # the last, which is important if a response contains multiple blocks.
+        # Note: <think> tags are used by some reasoning models (e.g., Qwen)
+        # as a "scratchpad" before the final answer — they should be stripped
+        # before sending the response to the frontend.
         return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
 
     # -- public API -------------------------------------------------------------

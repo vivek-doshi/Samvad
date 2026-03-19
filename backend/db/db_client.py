@@ -37,7 +37,15 @@ class DBClient:
 		# PRAGMA synchronous = NORMAL — balances durability vs write speed
 		await self._conn.execute("PRAGMA foreign_keys = ON")
 		await self._conn.execute("PRAGMA journal_mode = WAL")
+		# Note: WAL mode creates two extra files (.wal and .shm) alongside the DB.
+		# These are safe to delete after a clean shutdown but must not be deleted
+		# while the DB is open. Trade-off: slightly more disk usage, much better
+		# concurrent read performance.
 		await self._conn.execute("PRAGMA synchronous = NORMAL")
+		# Note: NORMAL synchronous mode is slightly less durable than FULL —
+		# in an OS crash (not app crash), the last few transactions could theoretically
+		# be lost. For a chat history app this trade-off is acceptable; for financial
+		# ledger data, FULL synchronous mode would be safer.
 		await self._conn.commit()
 
 	async def close(self) -> None:
