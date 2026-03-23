@@ -1,4 +1,9 @@
 # POST /upload — file ingestion trigger
+# Note 1: This module handles user document uploads. The full pipeline is:
+# receive file -> validate type and size -> save to disk -> insert DB record
+# -> run ingestion (parse + sanitise + chunk + embed + store) -> return result.
+# The ingestion is synchronous within the request — for large files consider
+# moving it to a background task (FastAPI BackgroundTasks) in a future version.
 
 import logging
 import uuid
@@ -15,7 +20,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
+# Note 2: ALLOWED_TYPES is a whitelist of permitted file extensions. A whitelist
+# ("only allow these") is much safer than a blacklist ("block all others") because
+# it is impossible to enumerate every malicious format. Any extension not in this
+# set is rejected with HTTP 400 before reading the file content.
 ALLOWED_TYPES = {"pdf", "docx", "csv", "xlsx", "txt"}
+# Note 3: MAX_UPLOAD_BYTES = 50MB. This prevents denial-of-service attacks where
+# an attacker uploads a huge file to exhaust server memory or disk. The limit is
+# enforced AFTER reading the file into memory — see the len(content) check below.
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 
@@ -31,6 +43,10 @@ async def upload_document(
     ingester: DocumentIngester = request.app.state.ingester
 
     # 1. Validate file type
+    # Note 4: We extract the extension from the filename using rsplit(".", 1)[-1].
+    # rsplit with maxsplit=1 splits from the RIGHT so "report.2024.pdf" correctly
+    # gives extension "pdf". The 'if "." in filename' guard handles files without
+    # an extension, returning an empty string that will fail the ALLOWED_TYPES check.
     filename = file.filename or "upload"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in ALLOWED_TYPES:
@@ -40,6 +56,9 @@ async def upload_document(
         )
 
     # Read file content (enforce size limit)
+    # Note 5: await file.read() reads the entire file into memory. For the 50MB
+    # limit this is acceptable. For much larger files, consider streaming with
+    # file.read(chunk_size) and writing chunks to disk to avoid memory exhaustion.
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(
@@ -51,6 +70,11 @@ async def upload_document(
     doc_id = str(uuid.uuid4())
 
     # 3. Save file to disk
+    # Note 6: Files are stored under runtime/user_uploads/<user_id>/ so each
+    # user's files are in their own directory. The doc_id prefix on the filename
+    # (e.g. "abc123_report.pdf") prevents filename collisions if two users upload
+    # files with the same name. upload_dir.mkdir(parents=True, exist_ok=True) is
+    # idempotent — it creates the directory tree if it doesn't exist yet.
     upload_dir = Path("runtime/user_uploads") / user_id
     upload_dir.mkdir(parents=True, exist_ok=True)
     safe_filename = f"{doc_id}_{filename}"
@@ -76,6 +100,10 @@ async def upload_document(
     )
 
     # 6. Ingest: chunk → embed → store
+    # Note 7: ingester.ingest() is the main pipeline: parse file -> sanitise
+    # content -> chunk into pieces -> embed with BGE -> store in ChromaDB + BM25.
+    # It raises ValueError for quarantined documents (containing dangerous content)
+    # and generic Exception for infrastructure failures (disk, embedding model).
     try:
         result = await ingester.ingest(
             file_path=str(file_path),

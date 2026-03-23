@@ -1,19 +1,38 @@
 # =============================================================================
 # Samvad Configuration
 # All tunable parameters. Sensitive values come from .env, not here.
+# Note 1: YAML files are human-readable configuration files. Python reads this
+# with yaml.safe_load() in backend/main.py. Changes here take effect on
+# server restart — no code changes required for parameter tuning.
 # =============================================================================
 
 model:
+  # Note 2: context_window is the maximum number of tokens the LLM can process
+  # in a single request (prompt + response combined). Arthvidya supports 32K.
+  # This value MUST match the --ctx_size parameter of the llama-cpp-python server.
   context_window: 32768
+  # Note 3: max_tokens_generation is the maximum response length. 2048 tokens
+  # ~ 1500 words. Increase for longer explanations, decrease for faster responses.
   max_tokens_generation: 2048
   temperature: 0.3          # Low for factual finance responses
+  # Note 4: temperature=0.3 means the model is mostly deterministic. Values
+  # closer to 0 make the model repeat the "most likely" next token every time
+  # (very factual, potentially repetitive). Values closer to 1.0 add creativity.
   top_p: 0.95
   top_k: 20
+  # Note 5: repeat_penalty=1.1 slightly penalises the model for repeating the
+  # same word or phrase. This reduces repetitive loops in long answers without
+  # making the output feel artificially constrained.
   repeat_penalty: 1.1
   timeout_seconds: 120
 
 token_budget:
   total: 32768
+  # Note 6: These five values partition the 32K context window. They are used
+  # by TokenManager (backend/core/token_manager.py) to allocate space to each
+  # component. The formula is:
+  # retrieval_budget = total - system_prompt_max - session_summary_max
+  #                  - history_token_budget - query_tokens - generation_reserved
   system_prompt_max: 500
   session_summary_max: 350
   history_verbatim_turns: 2
@@ -21,15 +40,27 @@ token_budget:
   # Retrieval gets: total - system - summary - history - query - generation
 
 rag:
+  # Note 7: top_k_retrieval=10 means we retrieve the 10 best chunks from EACH
+  # of vector search AND BM25. The two lists (up to 20 chunks total) are then
+  # merged with RRF and reranked to pick the final top_k_rerank chunks.
   top_k_retrieval: 10       # candidates from each of vector + BM25
   top_k_rerank: 5           # final chunks after reranking
+  # Note 8: rrf_k=60 is the RRF constant. Higher values make the fusion more
+  # conservative (less difference between rank 1 and rank 10). 60 is the
+  # commonly recommended default from the original RRF paper.
   rrf_k: 60                 # Reciprocal Rank Fusion constant
+  # Note 9: Chunk sizes are in TOKENS (not characters or words). A 400-token
+  # leaf chunk is small enough for precise vector similarity but large enough
+  # to contain a complete clause or sub-section from the Income Tax Act.
   leaf_chunk_size: 400      # tokens — for IT Act / regulatory docs
   parent_chunk_size: 1800   # tokens — returned to model
   user_doc_chunk_size: 512  # tokens — user uploaded documents
   user_doc_overlap: 64      # tokens overlap between user doc chunks
 
 embedding:
+  # Note 10: bge-small-en-v1.5 is a 33M parameter model from BAAI that produces
+  # 384-dimensional vectors. Small enough to run on CPU, accurate enough for
+  # legal/financial retrieval. The model name can be a local path or HuggingFace ID.
   model: bge-small-en-v1.5
   dimensions: 384
   batch_size: 32
@@ -37,17 +68,30 @@ embedding:
 reranker:
   model: cross-encoder/ms-marco-MiniLM-L-6-v2
   device: cpu               # Runs on CPU to leave GPU for Arthvidya
+  # Note 11: The reranker intentionally runs on CPU so the GPU is exclusively
+  # available for the LLM inference. For a quantised 7B model, GPU inference
+  # is 5-10x faster than CPU — the GPU should never be idle during LLM calls.
 
 session:
+  # Note 12: After 6 turns, the oldest turns are compressed into a summary.
+  # This keeps the conversation history within the token budget as sessions grow.
+  # The compression is handled by the session manager using the LLM itself.
   summarise_after_turns: 6  # compress oldest turns after this many turns
   max_active_sessions: 1    # per user — enforced at DB level too
 
 security:
   max_input_chars: 2000
   max_upload_mb: 50
+  # Note 13: injection_threshold=2 means the session is flagged after 2 detected
+  # injection attempts. This is tracked in conversation_guard.py and logged to
+  # the audit_log with event_type='injection_attempt'.
   injection_threshold: 2    # flag session after this many injection attempts
 
 corpus:
+  # Note 14: Each entry under 'collections' is a pre-indexed regulatory document.
+  # 'chroma_leaf' and 'chroma_parent' are the ChromaDB collection names where
+  # the leaf and parent chunks are stored. The Retriever uses these names to
+  # scope searches to the appropriate domain (e.g. only income_tax_act for tax queries).
   collections:
     income_tax_act:
       name: Income Tax Act 2025
@@ -82,7 +126,13 @@ corpus:
 
 logging:
   level: INFO
+  # Note 15: The log format includes timestamp, log level, module name, and
+  # message. Module name (%(name)s) helps filter logs by component — e.g.
+  # you can set backend.rag.retriever to DEBUG while keeping everything else at INFO.
   format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
   file: /runtime/logs/samvad.log
+  # Note 16: max_bytes=10MB with backup_count=5 implements log rotation:
+  # when the log file reaches 10MB, it is renamed to samvad.log.1 and a new
+  # samvad.log is started. Up to 5 rotated files are kept before the oldest is deleted.
   max_bytes: 10485760       # 10MB
   backup_count: 5

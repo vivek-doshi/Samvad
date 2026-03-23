@@ -1,2 +1,13 @@
 -- Samvad Database Initial Schema Migration
 -- Mirrors backend/db/schema.sql
+-- Note 1: This file is a placeholder for the first database migration script.
+-- In a production system, migrations are versioned SQL scripts that evolve the
+-- database schema incrementally. Tools like Alembic (Python), Flyway (Java), or
+-- sqitch manage migration history and ensure each script runs exactly once.
+-- Note 2: For SQLite in development, migrations are not strictly needed because
+-- the schema is recreated from schema.sql on every fresh installation.
+-- For PostgreSQL in production, migration scripts like this one would be run
+-- by a CI/CD pipeline (e.g. 'flyway migrate' step in GitHub Actions) to update
+-- the live database schema without data loss.
+-- Note 3: When adding new tables or columns, always use 'IF NOT EXISTS' and
+-- 'ADD COLUMN IF NOT EXISTS' to make migrations idempotent (safe to run twice).

@@ -1,2 +1,44 @@
 # Samvad Logging Configuration
-# Log format, rotation, level
+# Note 1: This file is reserved for a Python dictConfig-compatible logging
+# configuration. dictConfig allows fine-grained control over log levels,
+# formatters, and handlers for each module without touching application code.
+#
+# Note 2: Example dictConfig structure:
+#
+# version: 1
+# disable_existing_loggers: false   # Keep existing loggers (e.g. from libraries)
+#
+# formatters:
+#   standard:
+#     format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+#     datefmt: "%Y-%m-%d %H:%M:%S"
+#
+# handlers:
+#   console:
+#     class: logging.StreamHandler
+#     formatter: standard
+#     level: DEBUG
+#   file:
+#     class: logging.handlers.RotatingFileHandler
+#     filename: /runtime/logs/samvad.log
+#     maxBytes: 10485760    # 10MB
+#     backupCount: 5
+#     formatter: standard
+#     level: INFO
+#
+# loggers:
+#   backend.rag:
+#     level: DEBUG    # verbose during development
+#   backend.api:
+#     level: INFO
+#   uvicorn:
+#     level: WARNING  # suppress uvicorn access logs
+#
+# root:
+#   level: INFO
+#   handlers: [console, file]
+#
+# Note 3: The logging configuration in samvad.yaml (under the 'logging' key)
+# is currently used by the application. This file can be loaded instead via
+# logging.config.dictConfig(yaml.safe_load(open("config/logging.yaml")))
+# for more granular control in production.

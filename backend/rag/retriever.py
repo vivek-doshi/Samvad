@@ -1,6 +1,11 @@
 import chromadb
 import asyncio
 import logging
+# Note 1: These imports bring together all four retrieval components:
+# Embedder   — converts text to vectors for semantic (meaning-based) search
+# BM25Index  — keyword-based search using the BM25Okapi algorithm
+# Reranker   — cross-encoder that scores (query, chunk) pairs for precision
+# QueryExpander — expands finance abbreviations to improve recall
 from backend.rag.chunkers import Chunk
 from backend.rag.embedder import Embedder
 from backend.rag.bm25_index import BM25Index
@@ -9,6 +14,11 @@ from backend.rag.query_expander import QueryExpander
 
 logger = logging.getLogger(__name__)
 
+# Note 2: DOMAIN_COLLECTIONS maps the query domain (determined by QueryRouter)
+# to the ChromaDB collection names to search. This is the "retrieval scope" —
+# a tax query only searches income tax collections; a general query searches all.
+# "user_docs" is a placeholder — the actual collection names are per-document
+# UUIDs (e.g. "user_abc123") resolved at query time from session_documents table.
 DOMAIN_COLLECTIONS: dict[str, list[str]] = {
     "tax":        ["it_act_2025_leaves", "it_act_2025_parents"],
     "equity":     ["user_docs"],
@@ -27,6 +37,16 @@ DOMAIN_COLLECTIONS: dict[str, list[str]] = {
 
 class Retriever:
     """Orchestrates: vector search + BM25 → RRF fusion → rerank → parent promotion."""
+    # Note 3: This class is the heart of the RAG (Retrieval-Augmented Generation)
+    # pipeline. RAG works by finding relevant passages from a knowledge base and
+    # injecting them into the LLM prompt. The multi-stage pipeline here maximises
+    # both RECALL (finding all relevant passages) and PRECISION (returning only the
+    # most relevant ones). Each stage:
+    # 1. Expand query  — add finance synonyms for better recall
+    # 2. Retrieve      — cast wide net: vector + BM25, across multiple collections
+    # 3. Fuse          — RRF merges two ranked lists into one without score normalisation
+    # 4. Rerank        — cross-encoder gives a more accurate relevance score
+    # 5. Promote       — return parent chunks for richer LLM context
 
     def __init__(
         self,
@@ -68,6 +88,10 @@ class Retriever:
             collections = [c for c in base_collections if c != "user_docs"]
 
         # STEP 3 — Parallel vector + BM25 retrieval
+        # Note 4: asyncio.gather() runs both searches concurrently. Vector search
+        # in ChromaDB is I/O-bound (a DB call), so it benefits from async.
+        # BM25 is CPU-bound (pure Python computation), so it runs in a thread pool
+        # via asyncio.to_thread() to avoid blocking the async event loop.
         vector_results, bm25_results = await asyncio.gather(
             self._vector_search(expanded, collections, self.top_k_retrieval),
             asyncio.to_thread(self._bm25_search, expanded, collections, self.top_k_retrieval),
@@ -83,9 +107,18 @@ class Retriever:
                 bm25_results = [(c, 1.0) for c in boost_chunks] + bm25_results
 
         # STEP 5 — Reciprocal Rank Fusion
+        # Note 5: RRF (Reciprocal Rank Fusion) is a simple but effective technique
+        # for combining two ranked lists. Each item's score is 1/(k + rank), where
+        # k=60 is a constant that dampens rank differences. RRF outperforms score-
+        # based fusion because it doesn't require normalising scores from different
+        # retrieval systems (vector distances and BM25 scores are not comparable).
         fused = self._rrf(vector_results, bm25_results, k=self.rrf_k)
 
         # STEP 6 — Rerank in thread pool (CPU bound)
+        # Note 6: run_in_executor(None, ...) runs the blocking function in the
+        # default thread pool executor. The lambda captures 'fused' from the outer
+        # scope and passes it to rerank(). This pattern is the standard way to
+        # call synchronous CPU-bound code from async code without blocking the loop.
         loop = asyncio.get_event_loop()
         reranked = await loop.run_in_executor(
             None,
@@ -144,6 +177,12 @@ class Retriever:
         bm25_results: list[tuple[Chunk, float]],
         k: int = 60,
     ) -> list[Chunk]:
+        # Note 7: RRF works by accumulating 1/(k+rank) scores for each chunk ID
+        # across both ranked lists. A chunk that appears in BOTH lists (top of
+        # vector search AND top of BM25) gets double credit and rises to the top.
+        # The k parameter (60) prevents top-1 results from dominating too strongly.
+        # Reference: Cormack, Clarke, Buettcher (2009) — "Reciprocal Rank Fusion
+        # outperforms Condorcet and individual Rank Learning Methods" — SIGIR 2009.
         scores: dict[str, float] = {}
         chunk_map: dict[str, Chunk] = {}
 
@@ -159,6 +198,10 @@ class Retriever:
         return [chunk_map[cid] for cid in sorted_ids[: self.top_k_retrieval]]
 
     def _promote_to_parent(self, chunks: list[Chunk]) -> list[Chunk]:
+        # Note 8: Parent promotion improves response quality by returning broader
+        # context around a matched leaf chunk. If a leaf about "Section 80C proviso"
+        # matches the query, we return the full "Section 80C" parent chunk to the LLM
+        # so it has the complete statutory context, not just the isolated proviso.
         promoted: dict[str, Chunk] = {}
         for chunk in chunks:
             if chunk.chunk_level in ("leaf", "child") and chunk.parent_chunk_id:

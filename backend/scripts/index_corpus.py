@@ -1,6 +1,19 @@
 """
 ONE-TIME script: parse corpus PDFs → chunk → embed → store in ChromaDB + BM25.
 
+Note 1: This script is the data-loading pipeline for Samvad's knowledge base.
+It must be run BEFORE the server starts, or whenever new regulatory documents
+are added to the corpus. The server itself only READS from ChromaDB and BM25 —
+it never modifies the corpus during normal operation.
+
+Note 2: The pipeline for each source document:
+1. Parse PDFs using pdfplumber (text + tables preserved)
+2. HierarchicalChunker splits text into parent/child/leaf chunks
+3. Embedder converts leaf chunks to 384-dim vectors via BGE-small-en-v1.5
+4. ChromaDB stores embeddings + metadata in separate leaf and parent collections
+5. BM25Index builds a keyword index from the same leaf chunks
+6. corpus_index table in SQLite is updated with chunk counts and collection names
+
 Usage:
     python backend/scripts/index_corpus.py
     python backend/scripts/index_corpus.py --source income_tax_act
@@ -17,11 +30,19 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 # Allow running as a standalone script from the project root
+# Note 3: sys.path.insert(0, ...) adds the project root to Python's module
+# search path so 'from backend.rag.chunkers import ...' works when running
+# this script directly with 'python backend/scripts/index_corpus.py'.
+# Without this, Python would not find the 'backend' package since the current
+# working directory is not automatically in sys.path for scripts.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import yaml
 import chromadb
 import pdfplumber
+# Note 4: tqdm provides a progress bar for long-running loops. When indexing
+# hundreds of PDF pages and thousands of chunks, a progress bar is essential
+# so operators know the script is running and can estimate time remaining.
 from tqdm import tqdm
 
 from backend.rag.chunkers import HierarchicalChunker
@@ -31,9 +52,17 @@ from backend.db.db_client import DBClient
 
 logger = logging.getLogger("index_corpus")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+# Note 5: basicConfig(level=INFO) ensures INFO-level messages (like "Indexed N chunks")
+# appear in the terminal while DEBUG messages (verbose internal details) are suppressed.
+# Change to DEBUG during development to see detailed step-by-step processing.
 
 
 def _parse_pdf(path: str) -> str:
+    # Note 6: pdfplumber opens PDFs and extracts structured text.
+    # Regular text is extracted per page (preserving paragraphs), and tables
+    # are extracted separately and converted to Markdown pipe format (|col|col|).
+    # This ensures table data is passed to the chunker as structured text rather
+    # than as a jumbled stream of numbers and column headers.
     parts: list[str] = []
     with pdfplumber.open(path) as pdf:
         for page_num, page in enumerate(pdf.pages, start=1):
@@ -46,6 +75,11 @@ def _parse_pdf(path: str) -> str:
     return "\n".join(parts)
 
 
+# Note 7: SOURCE_DIR_MAP maps the short config key (e.g. "income_tax_act") to
+# the filesystem path where the PDF files for that source are stored.
+# The corpus PDFs must be placed in these directories before running this script.
+# They are not committed to git (they are large and copyrighted) — the operator
+# must download or place them manually before the first indexing run.
 SOURCE_DIR_MAP: dict[str, str] = {
     "income_tax_act": "data/corpus/income_tax_act_2025",
     "sebi":           "data/corpus/sebi_regulations",
@@ -83,6 +117,10 @@ async def index_source(
             (source_name,),
         )
         if row:
+            # Note 8: The --force flag bypasses this check to allow re-indexing an
+            # existing corpus (e.g. after a document is updated or the chunking
+            # parameters change). Without --force, already-indexed sources are
+            # skipped to avoid expensive duplicate re-embedding runs.
             logger.info("Already indexed: %s — use --force to re-index", source_name)
             return
 
